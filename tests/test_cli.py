@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 
 from spotify_cli import cli
 from spotify_cli.cli import app
+from spotify_cli.export import DEFAULT_COLUMNS
 from spotify_cli.settings import MissingCredentialsError, Settings
 
 runner = CliRunner()
@@ -43,6 +44,14 @@ def _mock_spotify(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         cli, "fetch_playlist", lambda spotify, playlist_id: ("Road Trip", [_item()])
     )
+
+
+@pytest.fixture(autouse=True)
+def _mock_wizard_prompts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_prompt_playlist", lambda: None)
+    monkeypatch.setattr(cli, "_prompt_format", lambda: None)
+    monkeypatch.setattr(cli, "_prompt_columns", lambda: list(DEFAULT_COLUMNS))
+    monkeypatch.setattr(cli, "_prompt_output", lambda: None)
 
 
 def test_help_exits_zero() -> None:
@@ -122,3 +131,82 @@ def test_reports_skipped_items(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert result.exit_code == 0
     assert "Skipped 1" in result.output
+
+
+def test_wizard_prompts_for_missing_playlist(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_prompt_playlist", lambda: "abc123")
+
+    result = runner.invoke(app, ["--format", "csv"])
+
+    assert result.exit_code == 0
+    assert "Song Title" in result.output
+
+
+def test_wizard_cancelled_playlist_prompt_exits_with_error() -> None:
+    result = runner.invoke(app, ["--format", "csv"])
+
+    assert result.exit_code == 1
+    assert "playlist" in result.output.lower()
+
+
+def test_wizard_prompts_for_missing_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_prompt_format", lambda: "json")
+
+    result = runner.invoke(app, ["abc123"])
+
+    assert result.exit_code == 0
+    assert '"title": "Song Title"' in result.output
+
+
+def test_wizard_prompts_for_missing_columns(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_prompt_columns", lambda: ["title", "isrc"])
+
+    result = runner.invoke(app, ["abc123", "--format", "csv"])
+
+    assert result.exit_code == 0
+    assert "title,isrc" in result.output
+    assert "Song Title,USRC17607839" in result.output
+
+
+def test_wizard_empty_columns_selection_exits_with_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_prompt_columns", lambda: [])
+
+    result = runner.invoke(app, ["abc123", "--format", "csv"])
+
+    assert result.exit_code == 1
+    assert "column" in result.output.lower()
+
+
+def test_wizard_prompts_for_output_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    output_file = tmp_path / "export.csv"
+    monkeypatch.setattr(cli, "_prompt_output", lambda: str(output_file))
+
+    result = runner.invoke(app, ["abc123", "--format", "csv"])
+
+    assert result.exit_code == 0
+    assert "Song Title" in output_file.read_text(encoding="utf-8")
+
+
+def test_wizard_output_prompt_declined_prints_to_stdout() -> None:
+    result = runner.invoke(app, ["abc123", "--format", "csv"])
+
+    assert result.exit_code == 0
+    assert "Song Title" in result.output
+
+
+def test_flags_skip_all_wizard_prompts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def _fail() -> str:
+        raise AssertionError("should not prompt")
+
+    monkeypatch.setattr(cli, "_prompt_playlist", _fail)
+    monkeypatch.setattr(cli, "_prompt_format", _fail)
+    monkeypatch.setattr(cli, "_prompt_columns", _fail)
+    monkeypatch.setattr(cli, "_prompt_output", _fail)
+    output_file = tmp_path / "export.csv"
+
+    result = runner.invoke(
+        app, ["abc123", "--format", "csv", "--columns", "title", "--output", str(output_file)]
+    )
+
+    assert result.exit_code == 0
+    assert "Song Title" in output_file.read_text(encoding="utf-8")
