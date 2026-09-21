@@ -43,8 +43,8 @@ Future-you revisiting this months later, or someone browsing the portfolio to se
 
 ### Source
 
-TODO — fill in once the initial implementation lands. Planned layout (per `README.md`): src-layout under `src/spotify_cli/`.
+`src/spotify_cli/` (src-layout, hatchling build backend, `py.typed` marker). `cli.py` defines the Typer `app`, installed as the `spotify-cli` entry point. CLI logic (playlist parsing, auth, fetch, export) is not implemented yet — `main()` raises `NotImplementedError`.
 
 ### Validation
 
-Run `ruff format --check .`, `ruff check .`, and `pytest` before considering a change done — CI (`.github/workflows/ci.yml`) runs the same on push/PR to `main`.
+Run `uv run ruff format --check .`, `uv run ruff check .`, `uv run mypy .`, and `uv run pytest` before considering a change done — CI (`.github/workflows/ci.yml`) runs the same on push/PR to `main`. `mypy` runs in strict mode (`tool.mypy` in `pyproject.toml`).
