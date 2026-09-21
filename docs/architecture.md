@@ -54,4 +54,4 @@ sequenceDiagram
     end
 ```
 
-A 404 (playlist not found/private) or 401 (bad credentials) never retries — the CLI fails fast with a clear message and exit code 1, unlike the 429 case above.
+A 404 (playlist not found/private) or 401 (bad credentials) never retries — the CLI fails fast with a clear message and exit code 1, unlike the 429 case above. The 429 retry gives up after 5 attempts, to avoid hanging indefinitely on a persistent rate limit.
