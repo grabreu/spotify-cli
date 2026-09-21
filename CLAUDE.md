@@ -43,7 +43,14 @@ Future-you revisiting this months later, or someone browsing the portfolio to se
 
 ### Source
 
-`src/spotify_cli/` (src-layout, hatchling build backend, `py.typed` marker). `cli.py` defines the Typer `app`, installed as the `spotify-cli` entry point. CLI logic (playlist parsing, auth, fetch, export) is not implemented yet — `main()` raises `NotImplementedError`.
+`src/spotify_cli/` (src-layout, hatchling build backend, `py.typed` marker):
+
+- `playlist.py` — parses a playlist ID, URL, or URI into a bare ID.
+- `auth.py` — Client Credentials token fetch; reads `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` (env, `.env` fallback).
+- `client.py` — fetches playlist name and paginated track items; retries 429 honoring `Retry-After` (capped at 5 attempts), fails fast on 404/401.
+- `track.py` — maps raw items to `Track`, filtering out local files, podcast episodes, and unavailable items.
+- `export.py` — `Export` plus `export_csv`/`export_json`, with column selection.
+- `cli.py` — Typer `app`/`main()`, installed as the `spotify-cli` entry point; wires the above together. Requires `playlist` and `--format` for now — the interactive wizard (prompting for whatever's missing) isn't implemented yet, so omitting either exits with a clear error.
 
 ### Validation
 
