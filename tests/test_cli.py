@@ -44,10 +44,12 @@ def _mock_spotify(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         cli, "fetch_playlist", lambda spotify, playlist_id: ("Road Trip", [_item()])
     )
+    monkeypatch.setattr(cli, "fetch_liked_songs", lambda spotify: [_item()])
 
 
 @pytest.fixture(autouse=True)
 def _mock_wizard_prompts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_prompt_source", lambda: "playlist")
     monkeypatch.setattr(cli, "_prompt_playlist", lambda: None)
     monkeypatch.setattr(cli, "_prompt_format", lambda: None)
     monkeypatch.setattr(cli, "_prompt_columns", lambda: list(DEFAULT_COLUMNS))
@@ -189,6 +191,41 @@ def test_wizard_prompts_for_output_path(monkeypatch: pytest.MonkeyPatch, tmp_pat
 
 def test_wizard_output_prompt_declined_prints_to_stdout() -> None:
     result = runner.invoke(app, ["abc123", "--format", "csv"])
+
+    assert result.exit_code == 0
+    assert "Song Title" in result.output
+
+
+def test_liked_flag_exports_liked_songs() -> None:
+    result = runner.invoke(app, ["--liked", "--format", "csv"])
+
+    assert result.exit_code == 0
+    assert "Song Title" in result.output
+
+
+def test_liked_flag_uses_liked_songs_label_in_json() -> None:
+    result = runner.invoke(app, ["--liked", "--format", "json"])
+
+    assert result.exit_code == 0
+    assert '"playlist_name": "Liked Songs"' in result.output
+
+
+def test_liked_and_playlist_together_exits_with_error() -> None:
+    result = runner.invoke(app, ["abc123", "--liked", "--format", "csv"])
+
+    assert result.exit_code == 1
+    assert "both" in result.output.lower()
+
+
+def test_wizard_offers_liked_songs_as_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_prompt_source", lambda: "liked")
+
+    def _fail_playlist_prompt() -> str:
+        raise AssertionError("should not prompt for a playlist when liked was chosen")
+
+    monkeypatch.setattr(cli, "_prompt_playlist", _fail_playlist_prompt)
+
+    result = runner.invoke(app, ["--format", "csv"])
 
     assert result.exit_code == 0
     assert "Song Title" in result.output

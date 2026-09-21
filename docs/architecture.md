@@ -2,7 +2,7 @@
 
 ## Domain Model
 
-`Track` isn't persisted — it exists only for the duration of one export, built from Spotify's playlist-items response. `artist` is the one field with a shape that differs by target: a real list on the `Track` object (kept as an array in JSON), joined into a comma-separated string wherever a flat format is needed (CSV, the interactive column picker's display). Items Spotify reports as local files, podcast episodes, or unavailable/removed never become a `Track` — they're filtered out before this point, not represented with null fields.
+`Track` isn't persisted — it exists only for the duration of one export, built from Spotify's playlist-items response, or from the Liked Songs (saved tracks) response when `--liked` is used — the two have different raw shapes (`item` vs. `track`) but are normalized to the same shape before reaching `Track`. `artist` is the one field with a shape that differs by target: a real list on the `Track` object (kept as an array in JSON), joined into a comma-separated string wherever a flat format is needed (CSV, the interactive column picker's display). Items Spotify reports as local files, podcast episodes, or unavailable/removed never become a `Track` — they're filtered out before this point, not represented with null fields. Liked Songs export uses the fixed `playlist_id`/`playlist_name` pair `"liked_songs"`/`"Liked Songs"`, since Spotify has no real playlist for it.
 
 ```mermaid
 classDiagram
@@ -27,7 +27,7 @@ classDiagram
 
 ## Export Flow
 
-The one flow the CLI has, whether triggered interactively or by flags. Representative because it carries the two non-obvious rules: the 429 retry, and the silent-filter-with-summary for non-track items.
+The one flow the CLI has, whether triggered interactively or by flags, and whether the source is a playlist or (`--liked`) Liked Songs — those two only differ in which Spotify endpoint is paginated. Representative because it carries the two non-obvious rules: the 429 retry, and the silent-filter-with-summary for non-track items.
 
 ```mermaid
 sequenceDiagram
@@ -42,7 +42,7 @@ sequenceDiagram
         User->>Spotify: authorize
         Spotify-->>CLI: access_token + refresh_token (cached to disk)
     end
-    CLI->>Spotify: GET playlist items (paginated)
+    CLI->>Spotify: GET playlist items, or Liked Songs, paginated
     alt 429 rate limited
         Spotify-->>CLI: 429 + Retry-After
         CLI->>CLI: wait, retry
