@@ -1,5 +1,3 @@
-"""Spotify Client Credentials auth: read app credentials and fetch an access token."""
-
 from __future__ import annotations
 
 import os
@@ -11,16 +9,15 @@ _TOKEN_URL = "https://accounts.spotify.com/api/token"
 
 
 class MissingCredentialsError(RuntimeError):
-    """Raised when SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET aren't set."""
+    pass
 
 
 class SpotifyAuthError(RuntimeError):
-    """Raised when the Client Credentials token request fails."""
+    pass
 
 
 def load_credentials() -> tuple[str, str]:
-    """Read SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET from the environment, with a .env fallback."""
-    load_dotenv()
+    load_dotenv()  # doesn't override already-set env vars, so real env vars win over .env
     client_id = os.environ.get("SPOTIFY_CLIENT_ID")
     client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
     if not client_id or not client_secret:
@@ -31,7 +28,6 @@ def load_credentials() -> tuple[str, str]:
 
 
 def fetch_access_token(client: httpx.Client, client_id: str, client_secret: str) -> str:
-    """Fetch a fresh app-only access token via the Client Credentials flow. Never cached."""
     response = client.post(
         _TOKEN_URL,
         data={"grant_type": "client_credentials"},

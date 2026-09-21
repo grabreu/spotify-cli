@@ -17,6 +17,10 @@ Python · Typer · questionary · Spotify Web API (Client Credentials) · Ruff �
 
 See [docs/architecture.md](docs/architecture.md) for the domain model and export flow, and [docs/adr/](docs/adr/) for the reasoning behind these decisions.
 
+## Configuration
+
+Requires a Spotify app's Client ID and Client Secret (Client Credentials flow). Get these from the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), then copy `.env.example` to `.env` and fill them in, or export `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` directly.
+
 ## Development
 
 ```bash
