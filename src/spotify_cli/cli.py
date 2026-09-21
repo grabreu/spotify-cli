@@ -1,5 +1,3 @@
-"""Typer CLI entry point for spotify-cli."""
-
 from __future__ import annotations
 
 import typer

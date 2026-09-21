@@ -1,5 +1,3 @@
-"""Parsing of playlist references (ID, URL, or URI) into a bare playlist ID."""
-
 from __future__ import annotations
 
 import re
@@ -10,11 +8,10 @@ _URI_PATTERN = re.compile(r"^spotify:playlist:([A-Za-z0-9]+)$")
 
 
 class InvalidPlaylistReferenceError(ValueError):
-    """Raised when a playlist reference isn't a recognizable ID, URL, or URI."""
+    pass
 
 
 def parse_playlist_id(reference: str) -> str:
-    """Extract a bare playlist ID from a raw ID, an open.spotify.com URL, or a spotify: URI."""
     reference = reference.strip()
 
     uri_match = _URI_PATTERN.match(reference)
