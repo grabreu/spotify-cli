@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from typing import Any
 
-import httpx
+from spotipy import Spotify
+from spotipy.exceptions import SpotifyException
+from spotipy.oauth2 import SpotifyOauthError
 
-_API_BASE = "https://api.spotify.com/v1"
-_MAX_RETRIES = 5
+from spotify_cli.auth import DEFAULT_CACHE_PATH
 
 
 class PlaylistNotFoundError(RuntimeError):
@@ -18,69 +18,48 @@ class PlaylistAccessError(RuntimeError):
     pass
 
 
-def fetch_playlist_name(
-    client: httpx.Client,
-    access_token: str,
-    playlist_id: str,
-    *,
-    sleep: Callable[[float], None] = time.sleep,
-) -> str:
-    response = _get(
-        client,
-        access_token,
-        f"{_API_BASE}/playlists/{playlist_id}",
-        playlist_id,
-        params={"fields": "name"},
-        sleep=sleep,
-    )
-    name = response.json().get("name")
-    if not isinstance(name, str):
-        raise PlaylistAccessError(f"Spotify's playlist response for {playlist_id!r} had no name.")
-    return name
+def fetch_playlist(spotify: Spotify, playlist_id: str) -> tuple[str, list[dict[str, Any]]]:
+    playlist = _call(spotify.playlist, playlist_id, playlist_id)
+
+    if "items" not in playlist:
+        raise _ownership_error(playlist_id)
+
+    items: list[dict[str, Any]] = playlist["items"]["items"]
+    next_page = playlist["items"]["next"]
+
+    while next_page:
+        page = _call(spotify.next, playlist_id, {"next": next_page})
+        items.extend(page["items"])
+        next_page = page["next"]
+
+    name: str = playlist["name"]
+    return name, items
 
 
-def iter_playlist_items(
-    client: httpx.Client,
-    access_token: str,
-    playlist_id: str,
-    *,
-    sleep: Callable[[float], None] = time.sleep,
-) -> Iterator[dict[str, Any]]:
-    url: str | None = f"{_API_BASE}/playlists/{playlist_id}/tracks"
-    params: dict[str, str] | None = {"limit": "50"}
-
-    while url:
-        response = _get(client, access_token, url, playlist_id, params=params, sleep=sleep)
-        payload = response.json()
-        yield from payload.get("items", [])
-        url = payload.get("next")
-        params = None
+def _call(fn: Callable[..., dict[str, Any]], playlist_id: str, *args: Any) -> dict[str, Any]:
+    try:
+        return fn(*args)
+    except SpotifyOauthError as error:
+        raise PlaylistAccessError(f"Spotify login failed: {error}") from error
+    except SpotifyException as error:
+        raise _translate_error(error, playlist_id) from error
 
 
-def _get(
-    client: httpx.Client,
-    access_token: str,
-    url: str,
-    playlist_id: str,
-    *,
-    params: dict[str, str] | None,
-    sleep: Callable[[float], None],
-) -> httpx.Response:
-    headers = {"Authorization": f"Bearer {access_token}"}
+def _translate_error(error: SpotifyException, playlist_id: str) -> RuntimeError:
+    if error.http_status == 404:
+        return PlaylistNotFoundError(f"Playlist not found: {playlist_id}")
+    if error.http_status == 403:
+        return _ownership_error(playlist_id)
+    if error.http_status == 401:
+        return PlaylistAccessError(
+            "Spotify rejected the access token (401). Try deleting the cached token at "
+            f"{DEFAULT_CACHE_PATH} and running again to log in fresh."
+        )
+    return PlaylistAccessError(f"Spotify API error for playlist {playlist_id!r}: {error}")
 
-    for _ in range(_MAX_RETRIES):
-        response = client.get(url, headers=headers, params=params)
 
-        if response.status_code == 429:
-            sleep(float(response.headers.get("Retry-After", "1")))
-            continue
-        if response.status_code == 404:
-            raise PlaylistNotFoundError(f"Playlist not found or not public: {playlist_id}")
-        if response.status_code == 401:
-            raise PlaylistAccessError("Spotify rejected the access token (401).")
-        response.raise_for_status()
-        return response
-
-    raise PlaylistAccessError(
-        f"Gave up on {playlist_id!r} after {_MAX_RETRIES} retries due to repeated 429s."
+def _ownership_error(playlist_id: str) -> PlaylistAccessError:
+    return PlaylistAccessError(
+        f"Playlist {playlist_id!r} isn't accessible: Spotify's API only returns track data "
+        "for playlists you own or collaborate on, regardless of whether the playlist is public."
     )

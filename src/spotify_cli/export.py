@@ -42,7 +42,7 @@ def export_json(export: Export, columns: Sequence[str] = DEFAULT_COLUMNS) -> str
             {column: _FIELD_GETTERS[column](track) for column in columns} for track in export.tracks
         ],
     }
-    return json.dumps(payload, indent=2)
+    return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
 def export_csv(export: Export, columns: Sequence[str] = DEFAULT_COLUMNS) -> str:

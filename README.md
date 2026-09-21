@@ -3,23 +3,42 @@
 [![CI](https://github.com/grabreu/spotify-cli/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/grabreu/spotify-cli/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/grabreu/spotify-cli?style=flat-square)](LICENSE)
 
-Interactive CLI that exports a public Spotify playlist's tracks as CSV or JSON.
+Interactive CLI that exports a Spotify playlist you own or collaborate on as CSV or JSON.
+
+```bash
+pip install git+https://github.com/grabreu/spotify-cli
+```
 
 ## Tech stack
 
-Python · Typer · questionary · Spotify Web API (Client Credentials) · Ruff · mypy · pytest · uv
+Python · Typer · questionary · spotipy (Spotify Web API, Authorization Code + PKCE) · pydantic-settings · Ruff · mypy · pytest · uv
+
+## Usage
+
+```bash
+spotify-cli <playlist> --format csv
+spotify-cli <playlist> --format json --columns title,artist,isrc --output tracks.json
+```
+
+`<playlist>` accepts a playlist ID, an `open.spotify.com/playlist/...` URL, or a `spotify:playlist:...` URI. `playlist` and `--format` are required for now — see [Configuration](#configuration) below for credentials.
+
+Spotify's Web API only returns track data for playlists you own or collaborate on — a playlist being public isn't enough. Exporting someone else's playlist (even a public, well-known one) fails with a clear error explaining this.
 
 ## Features
 
-- **Interactive wizard** — prompts for playlist, format, columns, and output whenever a flag isn't passed, Vite-style.
-- **Fully scriptable** — every prompt has a matching flag (`--format`, `--columns`, `--output`), so it runs with zero prompts once everything's provided.
 - **CSV/JSON export** — JSON wraps tracks in playlist metadata (`playlist_id`, `playlist_name`, `exported_at`); CSV is a flat table.
+- **Column selection** — `--columns` picks which fields to include (default: `title`, `artist`, `album`, `duration`).
+- **Fail-fast errors** — a bad playlist reference, missing/invalid credentials, a playlist that doesn't exist, or one you don't own/collaborate on all exit immediately with a clear message and exit code 1; 429s retry automatically, honoring `Retry-After`.
+
+TODO: interactive wizard, prompting for whatever isn't passed via flags — not implemented yet.
 
 See [docs/architecture.md](docs/architecture.md) for the domain model and export flow, and [docs/adr/](docs/adr/) for the reasoning behind these decisions.
 
 ## Configuration
 
-Requires a Spotify app's Client ID and Client Secret (Client Credentials flow). Get these from the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), then copy `.env.example` to `.env` and fill them in, or export `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` directly.
+Requires a Spotify app's Client ID (Authorization Code with PKCE — no client secret needed). Create one at the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), add `http://127.0.0.1:8080/callback` under its Redirect URIs, then copy `.env.example` to `.env` and fill in `SPOTIFY_CLIENT_ID`, or export it directly.
+
+The first run opens a browser to log in and authorize the app; the resulting token is cached to `~/.cache/spotify-cli/token.json` and refreshed automatically, so later runs don't need a fresh login.
 
 ## Development
 

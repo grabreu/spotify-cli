@@ -65,6 +65,13 @@ def test_export_json_custom_columns() -> None:
     assert payload["tracks"] == [{"isrc": "USRC17607839", "added_at": "2024-03-01T12:00:00+00:00"}]
 
 
+def test_export_json_writes_non_ascii_literally() -> None:
+    text = export_json(_export(_track(title="Águas De Março")), columns=["title"])
+
+    assert "Águas De Março" in text
+    assert "\\u00" not in text
+
+
 def test_export_json_rejects_unknown_column() -> None:
     with pytest.raises(ValueError, match="bogus"):
         export_json(_export(_track()), columns=["bogus"])

@@ -37,8 +37,11 @@ sequenceDiagram
 
     User->>CLI: spotify-cli [flags]
     CLI->>CLI: prompt for any input missing from flags
-    CLI->>Spotify: POST /api/token (Client Credentials)
-    Spotify-->>CLI: access_token
+    alt no cached token, or cached token expired/revoked
+        CLI->>User: open browser to log in (Authorization Code + PKCE)
+        User->>Spotify: authorize
+        Spotify-->>CLI: access_token + refresh_token (cached to disk)
+    end
     CLI->>Spotify: GET playlist items (paginated)
     alt 429 rate limited
         Spotify-->>CLI: 429 + Retry-After
@@ -54,4 +57,4 @@ sequenceDiagram
     end
 ```
 
-A 404 (playlist not found/private) or 401 (bad credentials) never retries — the CLI fails fast with a clear message and exit code 1, unlike the 429 case above. The 429 retry gives up after 5 attempts, to avoid hanging indefinitely on a persistent rate limit.
+A 404 (playlist doesn't exist), 401 (bad/expired token), or 403 (playlist exists but isn't owned by, or shared with, the logged-in user — Spotify's API withholds track data from everyone else, regardless of the playlist's public/private visibility) never retries — the CLI fails fast with a clear message and exit code 1, unlike the 429 case above. The 429 retry (handled by `spotipy`) gives up after 5 attempts, to avoid hanging indefinitely on a persistent rate limit.
