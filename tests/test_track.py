@@ -10,9 +10,10 @@ def _track_item(**overrides: Any) -> dict[str, Any]:
     item: dict[str, Any] = {
         "added_at": "2024-03-01T12:00:00Z",
         "is_local": False,
-        "track": {
+        "item": {
             "type": "track",
             "is_local": False,
+            "is_playable": True,
             "name": "Song Title",
             "artists": [{"name": "Artist One"}, {"name": "Artist Two"}],
             "album": {"name": "Album Name"},
@@ -44,7 +45,7 @@ def test_map_tracks_builds_track_from_item() -> None:
 
 def test_map_tracks_formats_duration_under_ten_seconds() -> None:
     item = _track_item()
-    item["track"]["duration_ms"] = 3_000
+    item["item"]["duration_ms"] = 3_000
 
     tracks, _ = map_tracks([item])
 
@@ -53,7 +54,7 @@ def test_map_tracks_formats_duration_under_ten_seconds() -> None:
 
 def test_map_tracks_handles_missing_isrc() -> None:
     item = _track_item()
-    del item["track"]["external_ids"]
+    del item["item"]["external_ids"]
 
     tracks, _ = map_tracks([item])
 
@@ -71,7 +72,7 @@ def test_map_tracks_skips_local_file() -> None:
 
 def test_map_tracks_skips_episode() -> None:
     item = _track_item()
-    item["track"]["type"] = "episode"
+    item["item"]["type"] = "episode"
 
     tracks, skipped = map_tracks([item])
 
@@ -80,7 +81,7 @@ def test_map_tracks_skips_episode() -> None:
 
 
 def test_map_tracks_skips_removed_track() -> None:
-    item = _track_item(track=None)
+    item = _track_item(item=None)
 
     tracks, skipped = map_tracks([item])
 
@@ -90,7 +91,7 @@ def test_map_tracks_skips_removed_track() -> None:
 
 def test_map_tracks_skips_unplayable_track() -> None:
     item = _track_item()
-    item["track"]["is_playable"] = False
+    item["item"]["is_playable"] = False
 
     tracks, skipped = map_tracks([item])
 
@@ -99,7 +100,7 @@ def test_map_tracks_skips_unplayable_track() -> None:
 
 
 def test_map_tracks_counts_mixed_items() -> None:
-    items = [_track_item(), _track_item(is_local=True), _track_item(track=None)]
+    items = [_track_item(), _track_item(is_local=True), _track_item(item=None)]
 
     tracks, skipped = map_tracks(items)
 

@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-import httpx
 import pytest
 from typer.testing import CliRunner
 
 from spotify_cli import cli
-from spotify_cli.auth import MissingCredentialsError
 from spotify_cli.cli import app
+from spotify_cli.settings import MissingCredentialsError, Settings
 
 runner = CliRunner()
 
@@ -19,9 +17,10 @@ def _item(**overrides: Any) -> dict[str, Any]:
     item: dict[str, Any] = {
         "added_at": "2024-03-01T12:00:00Z",
         "is_local": False,
-        "track": {
+        "item": {
             "type": "track",
             "is_local": False,
+            "is_playable": True,
             "name": "Song Title",
             "artists": [{"name": "Artist One"}],
             "album": {"name": "Album Name"},
@@ -35,16 +34,15 @@ def _item(**overrides: Any) -> dict[str, Any]:
     return item
 
 
-def _iter_items(client: httpx.Client, token: str, playlist_id: str) -> Iterator[dict[str, Any]]:
-    return iter([_item()])
-
-
 @pytest.fixture(autouse=True)
 def _mock_spotify(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli, "load_credentials", lambda: ("id", "secret"))
-    monkeypatch.setattr(cli, "fetch_access_token", lambda client, cid, secret: "token")
-    monkeypatch.setattr(cli, "fetch_playlist_name", lambda client, token, playlist_id: "Road Trip")
-    monkeypatch.setattr(cli, "iter_playlist_items", _iter_items)
+    monkeypatch.setattr(
+        cli, "load_settings", lambda: Settings(_env_file=None, spotify_client_id="id")
+    )
+    monkeypatch.setattr(cli, "create_spotify_client", lambda settings: object())
+    monkeypatch.setattr(
+        cli, "fetch_playlist", lambda spotify, playlist_id: ("Road Trip", [_item()])
+    )
 
 
 def test_help_exits_zero() -> None:
@@ -70,10 +68,10 @@ def test_rejects_invalid_playlist_reference() -> None:
 
 
 def test_fails_fast_on_missing_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _raise() -> tuple[str, str]:
+    def _raise() -> Settings:
         raise MissingCredentialsError("missing")
 
-    monkeypatch.setattr(cli, "load_credentials", _raise)
+    monkeypatch.setattr(cli, "load_settings", _raise)
 
     result = runner.invoke(app, ["abc123", "--format", "csv"])
 
@@ -114,10 +112,11 @@ def test_respects_custom_columns() -> None:
 
 
 def test_reports_skipped_items(monkeypatch: pytest.MonkeyPatch) -> None:
-    def items(client: httpx.Client, token: str, playlist_id: str) -> Iterator[dict[str, Any]]:
-        return iter([_item(), _item(is_local=True)])
-
-    monkeypatch.setattr(cli, "iter_playlist_items", items)
+    monkeypatch.setattr(
+        cli,
+        "fetch_playlist",
+        lambda spotify, playlist_id: ("Road Trip", [_item(), _item(is_local=True)]),
+    )
 
     result = runner.invoke(app, ["abc123", "--format", "csv"])
 

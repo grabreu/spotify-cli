@@ -1,44 +1,23 @@
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
-import httpx
-from dotenv import load_dotenv
+from spotipy import Spotify
+from spotipy.cache_handler import CacheFileHandler
+from spotipy.oauth2 import SpotifyPKCE
 
-_TOKEN_URL = "https://accounts.spotify.com/api/token"
+from spotify_cli.settings import Settings
 
-
-class MissingCredentialsError(RuntimeError):
-    pass
-
-
-class SpotifyAuthError(RuntimeError):
-    pass
+DEFAULT_CACHE_PATH = Path.home() / ".cache" / "spotify-cli" / "token.json"
 
 
-def load_credentials() -> tuple[str, str]:
-    load_dotenv()  # doesn't override already-set env vars, so real env vars win over .env
-    client_id = os.environ.get("SPOTIFY_CLIENT_ID")
-    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET")
-    if not client_id or not client_secret:
-        raise MissingCredentialsError(
-            "SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set (env or .env)."
-        )
-    return client_id, client_secret
-
-
-def fetch_access_token(client: httpx.Client, client_id: str, client_secret: str) -> str:
-    response = client.post(
-        _TOKEN_URL,
-        data={"grant_type": "client_credentials"},
-        auth=(client_id, client_secret),
+def create_spotify_client(settings: Settings, *, cache_path: Path = DEFAULT_CACHE_PATH) -> Spotify:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    auth_manager = SpotifyPKCE(
+        client_id=settings.spotify_client_id,
+        redirect_uri=settings.spotify_redirect_uri,
+        scope=settings.spotify_scope,
+        open_browser=True,
+        cache_handler=CacheFileHandler(cache_path=str(cache_path)),
     )
-
-    if response.status_code == 401:
-        raise SpotifyAuthError("Spotify rejected the client credentials (401).")
-    response.raise_for_status()
-
-    token = response.json().get("access_token")
-    if not isinstance(token, str) or not token:
-        raise SpotifyAuthError("Spotify's token response didn't include an access_token.")
-    return token
+    return Spotify(auth_manager=auth_manager, retries=5)

@@ -1,22 +1,30 @@
 from __future__ import annotations
 
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-import httpx
 import typer
 
-from spotify_cli.auth import fetch_access_token, load_credentials
-from spotify_cli.client import fetch_playlist_name, iter_playlist_items
+from spotify_cli.auth import create_spotify_client
+from spotify_cli.client import fetch_playlist
 from spotify_cli.export import DEFAULT_COLUMNS, Export, export_csv, export_json
 from spotify_cli.playlist import parse_playlist_id
+from spotify_cli.settings import load_settings
 from spotify_cli.track import map_tracks
 
 app = typer.Typer(
     name="spotify-cli",
-    help="Export a public Spotify playlist's tracks as CSV or JSON.",
+    help="Export a Spotify playlist you own or collaborate on as CSV or JSON.",
     add_completion=False,
 )
+
+
+def _ensure_utf8_stdout() -> None:
+    # avoids mangled accented characters on legacy Windows console codepages
+    encoding = sys.stdout.encoding
+    if encoding is not None and encoding.lower() != "utf-8":
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
 
 @app.command()
@@ -34,7 +42,8 @@ def main(
         None, "--output", help="File to write to. Prompted for if omitted (default: stdout)."
     ),
 ) -> None:
-    """Export a public Spotify playlist's tracks as CSV or JSON."""
+    """Export a Spotify playlist you own or collaborate on as CSV or JSON."""
+    _ensure_utf8_stdout()
     if playlist is None or format is None:
         typer.echo(
             "playlist and --format are required (the interactive wizard isn't implemented yet).",
@@ -53,11 +62,9 @@ def main(
 
     try:
         playlist_id = parse_playlist_id(playlist)
-        client_id, client_secret = load_credentials()
-        with httpx.Client() as http_client:
-            access_token = fetch_access_token(http_client, client_id, client_secret)
-            playlist_name = fetch_playlist_name(http_client, access_token, playlist_id)
-            items = list(iter_playlist_items(http_client, access_token, playlist_id))
+        settings = load_settings()
+        spotify = create_spotify_client(settings)
+        playlist_name, items = fetch_playlist(spotify, playlist_id)
     except (ValueError, RuntimeError) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error

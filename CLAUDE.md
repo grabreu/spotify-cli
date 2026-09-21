@@ -2,7 +2,7 @@
 
 ## Repository
 
-Interactive CLI that exports a public Spotify playlist's tracks as CSV or JSON, using the Client Credentials flow (app-only auth, no user login).
+Interactive CLI that exports a Spotify playlist you own or collaborate on as CSV or JSON, using Authorization Code with PKCE (browser login, no client secret) via `spotipy`. Spotify's API only returns track data for playlists you own or collaborate on — public visibility alone isn't enough.
 
 Read `README.md` before making changes — it documents the project pitch and features. Read `docs/architecture.md` for the domain model and export flow. Significant, hard-to-reverse decisions are recorded in `docs/adr/` — check it before revisiting one, and add an entry when making a new one.
 
@@ -46,8 +46,9 @@ Future-you revisiting this months later, or someone browsing the portfolio to se
 `src/spotify_cli/` (src-layout, hatchling build backend, `py.typed` marker):
 
 - `playlist.py` — parses a playlist ID, URL, or URI into a bare ID.
-- `auth.py` — Client Credentials token fetch; reads `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` (env, `.env` fallback).
-- `client.py` — fetches playlist name and paginated track items; retries 429 honoring `Retry-After` (capped at 5 attempts), fails fast on 404/401.
+- `settings.py` — `pydantic-settings` config (`SPOTIFY_CLIENT_ID`, env or `.env`); `load_settings()` is lazy, never called at import time, so tests/CI don't need real credentials.
+- `auth.py` — builds a `spotipy.Spotify` client with `SpotifyPKCE` (browser login, token cached to `~/.cache/spotify-cli/token.json`, refreshed automatically).
+- `client.py` — fetches playlist name and paginated track items via `spotipy`; translates `SpotifyException`/`SpotifyOauthError` into `PlaylistNotFoundError`/`PlaylistAccessError` (404 / 401 & 403). 429 retry is handled internally by `spotipy`.
 - `track.py` — maps raw items to `Track`, filtering out local files, podcast episodes, and unavailable items.
 - `export.py` — `Export` plus `export_csv`/`export_json`, with column selection.
 - `cli.py` — Typer `app`/`main()`, installed as the `spotify-cli` entry point; wires the above together. Requires `playlist` and `--format` for now — the interactive wizard (prompting for whatever's missing) isn't implemented yet, so omitting either exits with a clear error.
