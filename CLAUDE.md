@@ -51,7 +51,7 @@ Future-you revisiting this months later, or someone browsing the portfolio to se
 - `client.py` — fetches playlist name and paginated track items via `spotipy`; translates `SpotifyException`/`SpotifyOauthError` into `PlaylistNotFoundError`/`PlaylistAccessError` (404 / 401 & 403). 429 retry is handled internally by `spotipy`.
 - `track.py` — maps raw items to `Track`, filtering out local files, podcast episodes, and unavailable items.
 - `export.py` — `Export` plus `export_csv`/`export_json`, with column selection.
-- `cli.py` — Typer `app`/`main()`, installed as the `spotify-cli` entry point; wires the above together. Requires `playlist` and `--format` for now — the interactive wizard (prompting for whatever's missing) isn't implemented yet, so omitting either exits with a clear error.
+- `cli.py` — Typer `app`/`main()`, installed as the `spotify-cli` entry point; wires the above together. A `questionary` wizard prompts for `playlist`/`--format`/`--columns`/`--output` when omitted; passing all of them skips every prompt.
 
 ### Validation
 

@@ -3,12 +3,14 @@ from __future__ import annotations
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
+import questionary
 import typer
 
 from spotify_cli.auth import create_spotify_client
 from spotify_cli.client import fetch_playlist
-from spotify_cli.export import DEFAULT_COLUMNS, Export, export_csv, export_json
+from spotify_cli.export import ALL_COLUMNS, DEFAULT_COLUMNS, Export, export_csv, export_json
 from spotify_cli.playlist import parse_playlist_id
 from spotify_cli.settings import load_settings
 from spotify_cli.track import map_tracks
@@ -25,6 +27,29 @@ def _ensure_utf8_stdout() -> None:
     encoding = sys.stdout.encoding
     if encoding is not None and encoding.lower() != "utf-8":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+
+
+def _prompt_playlist() -> str | None:
+    return cast(str | None, questionary.text("Playlist ID, URL, or URI:").ask())
+
+
+def _prompt_format() -> str | None:
+    return cast(str | None, questionary.select("Export format:", choices=["csv", "json"]).ask())
+
+
+def _prompt_columns() -> list[str] | None:
+    choices = [
+        questionary.Choice(column, checked=column in DEFAULT_COLUMNS) for column in ALL_COLUMNS
+    ]
+    return cast(
+        "list[str] | None", questionary.checkbox("Columns to include:", choices=choices).ask()
+    )
+
+
+def _prompt_output() -> str | None:
+    if not questionary.confirm("Save to a file?", default=False).ask():
+        return None
+    return cast(str | None, questionary.text("Output file path:").ask())
 
 
 @app.command()
@@ -44,21 +69,30 @@ def main(
 ) -> None:
     """Export a Spotify playlist you own or collaborate on as CSV or JSON."""
     _ensure_utf8_stdout()
-    if playlist is None or format is None:
-        typer.echo(
-            "playlist and --format are required (the interactive wizard isn't implemented yet).",
-            err=True,
-        )
+
+    if playlist is None:
+        playlist = _prompt_playlist()
+    if not playlist:
+        typer.echo("A playlist ID, URL, or URI is required.", err=True)
         raise typer.Exit(code=1)
+
+    if format is None:
+        format = _prompt_format()
     if format not in ("csv", "json"):
         typer.echo(f"--format must be 'csv' or 'json', got {format!r}.", err=True)
         raise typer.Exit(code=1)
 
-    selected_columns = (
-        [column.strip() for column in columns.split(",") if column.strip()]
-        if columns
-        else list(DEFAULT_COLUMNS)
-    )
+    selected_columns: list[str] | None
+    if columns is not None:
+        selected_columns = [column.strip() for column in columns.split(",") if column.strip()]
+    else:
+        selected_columns = _prompt_columns()
+    if not selected_columns:
+        typer.echo("At least one column is required.", err=True)
+        raise typer.Exit(code=1)
+
+    if output is None:
+        output = _prompt_output()
 
     try:
         playlist_id = parse_playlist_id(playlist)
