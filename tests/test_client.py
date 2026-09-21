@@ -6,7 +6,12 @@ import pytest
 from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyOauthError
 
-from spotify_cli.client import PlaylistAccessError, PlaylistNotFoundError, fetch_playlist
+from spotify_cli.client import (
+    PlaylistAccessError,
+    PlaylistNotFoundError,
+    fetch_liked_songs,
+    fetch_playlist,
+)
 
 
 class _FakeSpotify:
@@ -15,6 +20,9 @@ class _FakeSpotify:
         self.next_calls: list[dict[str, Any]] = []
 
     def playlist(self, playlist_id: str) -> dict[str, Any]:
+        return self._pages[0]
+
+    def current_user_saved_tracks(self, limit: int) -> dict[str, Any]:
         return self._pages[0]
 
     def next(self, previous: dict[str, Any]) -> dict[str, Any]:
@@ -27,6 +35,9 @@ class _RaisingSpotify:
         self._error = error
 
     def playlist(self, playlist_id: str) -> dict[str, Any]:
+        raise self._error
+
+    def current_user_saved_tracks(self, limit: int) -> dict[str, Any]:
         raise self._error
 
     def next(self, previous: dict[str, Any]) -> dict[str, Any]:
@@ -102,3 +113,33 @@ def test_fetch_playlist_translates_oauth_error() -> None:
 
     with pytest.raises(PlaylistAccessError):
         fetch_playlist(spotify, "abc123")
+
+
+def test_fetch_liked_songs_normalizes_track_key_to_item() -> None:
+    spotify = _FakeSpotify(
+        [{"items": [{"added_at": "2024-01-01T00:00:00Z", "track": {"name": "a"}}], "next": None}]
+    )
+
+    items = fetch_liked_songs(spotify)
+
+    assert items == [{"added_at": "2024-01-01T00:00:00Z", "item": {"name": "a"}}]
+
+
+def test_fetch_liked_songs_follows_pagination() -> None:
+    spotify = _FakeSpotify(
+        [
+            {"items": [{"added_at": "d1", "track": {"name": "a"}}], "next": "page2"},
+            {"items": [{"added_at": "d2", "track": {"name": "b"}}], "next": None},
+        ]
+    )
+
+    items = fetch_liked_songs(spotify)
+
+    assert [item["item"]["name"] for item in items] == ["a", "b"]
+
+
+def test_fetch_liked_songs_translates_errors() -> None:
+    spotify = _RaisingSpotify(SpotifyException(401, -1, "denied"))
+
+    with pytest.raises(PlaylistAccessError, match="cached token"):
+        fetch_liked_songs(spotify)

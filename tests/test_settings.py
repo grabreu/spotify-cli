@@ -16,7 +16,7 @@ def test_load_settings_reads_client_id_and_applies_defaults(
 
     assert settings.spotify_client_id == "the-id"
     assert settings.spotify_redirect_uri == "http://127.0.0.1:8080/callback"
-    assert settings.spotify_scope == "playlist-read-private"
+    assert settings.spotify_scope == "playlist-read-private user-library-read"
 
 
 def test_load_settings_missing_client_id_raises(monkeypatch: pytest.MonkeyPatch) -> None:

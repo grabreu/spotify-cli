@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 from spotipy import Spotify
@@ -34,6 +35,25 @@ def fetch_playlist(spotify: Spotify, playlist_id: str) -> tuple[str, list[dict[s
 
     name: str = playlist["name"]
     return name, items
+
+
+def fetch_liked_songs(spotify: Spotify) -> list[dict[str, Any]]:
+    page = _call(partial(spotify.current_user_saved_tracks, limit=50), "liked_songs")
+    items = [_normalize_saved_track(entry) for entry in page["items"]]
+    next_page = page["next"]
+
+    while next_page:
+        page = _call(spotify.next, "liked_songs", page)
+        items.extend(_normalize_saved_track(entry) for entry in page["items"])
+        next_page = page["next"]
+
+    return items
+
+
+def _normalize_saved_track(entry: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(entry)
+    normalized["item"] = normalized.pop("track")
+    return normalized
 
 
 def _call(fn: Callable[..., dict[str, Any]], playlist_id: str, *args: Any) -> dict[str, Any]:
