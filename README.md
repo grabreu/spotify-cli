@@ -7,7 +7,7 @@ Interactive CLI that exports a public Spotify playlist's tracks as CSV or JSON.
 
 ## Tech stack
 
-Python 3.11+ · Typer · questionary · Spotify Web API (Client Credentials) · pytest · ruff
+Python · Typer · questionary · Spotify Web API (Client Credentials) · Ruff · mypy · pytest · uv
 
 ## Features
 
@@ -19,14 +19,13 @@ See [docs/architecture.md](docs/architecture.md) for the domain model and export
 
 ## Development
 
-Requires Python 3.11+.
-
 ```bash
-pip install -e ".[dev]"
-spotify-cli
+uv sync --dev
+uv run pytest
+uv run ruff format .
+uv run ruff check .
+uv run mypy .
 ```
-
-Other commands: `pytest` (tests), `ruff format --check .` / `ruff check .` (lint, matches CI).
 
 ## License
 
