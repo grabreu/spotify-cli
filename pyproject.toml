@@ -35,7 +35,7 @@ Issues = "https://github.com/grabreu/spotify-cli/issues"
 spotify-cli = "spotify_cli.cli:app"
 
 [dependency-groups]
-dev = ["ruff>=0.6", "mypy>=1.11", "pytest>=8.3"]
+dev = ["ruff>=0.16.9", "mypy>=1.11", "pytest>=8.3"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/spotify_cli"]
