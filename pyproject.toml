@@ -24,7 +24,7 @@ dependencies = [
     "typer>=0.12",
     "questionary>=2.0",
     "spotipy>=2.24",
-    "pydantic-settings>=2.5",
+    "pydantic-settings>=2.16.0",
 ]
 
 [project.urls]
